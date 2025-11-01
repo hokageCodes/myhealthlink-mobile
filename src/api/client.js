@@ -32,8 +32,19 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle 401 - Token expired
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Log network errors for debugging
+    if (!error.response) {
+      console.error('[API Client] Network error - No response from server');
+      console.error('[API Client] Request URL:', originalRequest?.url);
+      console.error('[API Client] Base URL:', originalRequest?.baseURL);
+      console.error('[API Client] Error:', error.message);
+    }
+
+    // Handle 401 - Token expired (but not for login/register/auth endpoints)
+    if (error.response?.status === 401 && 
+        !originalRequest._retry && 
+        !originalRequest.url?.includes('/auth/login') &&
+        !originalRequest.url?.includes('/auth/register')) {
       originalRequest._retry = true;
 
       try {
@@ -45,11 +56,16 @@ apiClient.interceptors.response.use(
             { refreshToken }
           );
 
-          const { accessToken } = response.data.data;
-          await SecureStore.setItemAsync('accessToken', accessToken);
-          
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          return apiClient(originalRequest);
+          if (response.data.success && response.data.data) {
+            const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+            await SecureStore.setItemAsync('accessToken', accessToken);
+            if (newRefreshToken) {
+              await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+            }
+            
+            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+            return apiClient(originalRequest);
+          }
         }
       } catch (refreshError) {
         await SecureStore.deleteItemAsync('accessToken');

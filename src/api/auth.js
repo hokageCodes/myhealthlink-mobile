@@ -8,36 +8,77 @@ export const authAPI = {
   },
 
   login: async (emailOrPhone, password, rememberMe = false) => {
-    const response = await apiClient.post('/auth/login', {
-      emailOrPhone,
-      password,
-      rememberMe,
-    });
-    
-    if (response.data.success) {
-      const { accessToken, refreshToken, user } = response.data.data;
-      await SecureStore.setItemAsync('accessToken', accessToken);
-      if (refreshToken) {
-        await SecureStore.setItemAsync('refreshToken', refreshToken);
+    try {
+      const response = await apiClient.post('/auth/login', {
+        emailOrPhone,
+        password,
+        rememberMe,
+      });
+      
+      if (response.data && response.data.success) {
+        const data = response.data.data || {};
+        const { accessToken, refreshToken, user } = data;
+        
+        if (!accessToken) {
+          throw new Error('No access token received from server');
+        }
+        
+        await SecureStore.setItemAsync('accessToken', accessToken);
+        if (refreshToken) {
+          await SecureStore.setItemAsync('refreshToken', refreshToken);
+        }
+        if (user) {
+          await SecureStore.setItemAsync('userData', JSON.stringify(user));
+        }
       }
-      await SecureStore.setItemAsync('userData', JSON.stringify(user));
+      
+      return response.data;
+    } catch (error) {
+      // Re-throw with better error message
+      if (error.response) {
+        // Server responded with error
+        throw error;
+      } else if (error.request) {
+        // Request made but no response
+        throw new Error('Cannot connect to server. Please check your network and API URL.');
+      } else {
+        // Something else
+        throw error;
+      }
     }
-    
-    return response.data;
   },
 
   verifyOTP: async (email, otp) => {
-    const response = await apiClient.post('/auth/verify-otp', { email, otp });
-    
-    if (response.data.success) {
-      const { accessToken, user } = response.data.data;
-      await SecureStore.setItemAsync('accessToken', accessToken);
-      if (user) {
-        await SecureStore.setItemAsync('userData', JSON.stringify(user));
+    try {
+      const response = await apiClient.post('/auth/verify-otp', { email, otp });
+      
+      if (response.data && response.data.success) {
+        const data = response.data.data || {};
+        const { accessToken, refreshToken, user } = data;
+        
+        if (!accessToken) {
+          throw new Error('No access token received from server');
+        }
+        
+        await SecureStore.setItemAsync('accessToken', accessToken);
+        if (refreshToken) {
+          await SecureStore.setItemAsync('refreshToken', refreshToken);
+        }
+        if (user) {
+          await SecureStore.setItemAsync('userData', JSON.stringify(user));
+        }
+      }
+      
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        throw error;
+      } else if (error.request) {
+        throw new Error('Cannot connect to server. Please check your network and API URL.');
+      } else {
+        throw error;
       }
     }
-    
-    return response.data;
   },
 
   resendOTP: async (email) => {

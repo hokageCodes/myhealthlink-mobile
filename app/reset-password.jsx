@@ -10,49 +10,59 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Toast from 'react-native-toast-message';
-import useAuthStore from '../src/store/authStore';
+import { authAPI } from '../src/api/auth';
 
-const loginSchema = Yup.object().shape({
-  emailOrPhone: Yup.string()
-    .required('Email or phone number is required'),
+const resetPasswordSchema = Yup.object().shape({
   password: Yup.string()
+    .min(6, 'Password must be at least 6 characters')
     .required('Password is required'),
+  confirmPassword: Yup.string()
+    .oneOf([Yup.ref('password')], 'Passwords must match')
+    .required('Please confirm your password'),
 });
 
-export default function LoginScreen() {
+export default function ResetPasswordScreen() {
   const router = useRouter();
-  const login = useAuthStore((state) => state.login);
+  const params = useLocalSearchParams();
+  const token = params.token || '';
 
-  const handleLogin = async (values, { setSubmitting }) => {
+  const handleSubmit = async (values, { setSubmitting }) => {
+    if (!token) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Reset token is missing',
+      });
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const result = await login(values.emailOrPhone, values.password);
+      const result = await authAPI.resetPassword(token, values.password);
       
       if (result.success) {
         Toast.show({
           type: 'success',
-          text1: 'Welcome back!',
-          text2: 'You have successfully logged in',
+          text1: 'Success!',
+          text2: 'Password reset successfully',
         });
-        router.replace('/(tabs)/home');
+        router.replace('/login');
       } else {
         Toast.show({
           type: 'error',
-          text1: 'Login Failed',
-          text2: result.message || 'Invalid credentials',
-          visibilityTime: 4000,
+          text1: 'Error',
+          text2: result.message || 'Failed to reset password',
         });
       }
     } catch (error) {
-      console.error('Login error:', error);
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message || 'An unexpected error occurred',
-        visibilityTime: 4000,
+        text2: 'Failed to reset password',
       });
     } finally {
       setSubmitting(false);
@@ -66,76 +76,68 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.subtitle}>
+            Enter your new password below
+          </Text>
         </View>
 
         <Formik
-          initialValues={{ emailOrPhone: '', password: '' }}
-          validationSchema={loginSchema}
-          onSubmit={handleLogin}
+          initialValues={{ password: '', confirmPassword: '' }}
+          validationSchema={resetPasswordSchema}
+          onSubmit={handleSubmit}
         >
           {({ handleChange, handleBlur, handleSubmit, values, errors, touched, isSubmitting }) => (
             <View style={styles.form}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email or Phone</Text>
-                <TextInput
-                  style={[styles.input, errors.emailOrPhone && touched.emailOrPhone && styles.inputError]}
-                  placeholder="Enter your email or phone"
-                  value={values.emailOrPhone}
-                  onChangeText={handleChange('emailOrPhone')}
-                  onBlur={handleBlur('emailOrPhone')}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoComplete="email"
-                />
-                {errors.emailOrPhone && touched.emailOrPhone && (
-                  <Text style={styles.errorText}>{errors.emailOrPhone}</Text>
-                )}
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>New Password</Text>
                 <TextInput
                   style={[styles.input, errors.password && touched.password && styles.inputError]}
-                  placeholder="Enter your password"
+                  placeholder="Enter new password (min 6 characters)"
                   value={values.password}
                   onChangeText={handleChange('password')}
                   onBlur={handleBlur('password')}
                   secureTextEntry
                   autoCapitalize="none"
-                  autoComplete="password"
+                  autoComplete="password-new"
                 />
                 {errors.password && touched.password && (
                   <Text style={styles.errorText}>{errors.password}</Text>
                 )}
               </View>
 
-              <TouchableOpacity
-                style={styles.forgotButton}
-                onPress={() => router.push('/forgot-password')}
-              >
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <TextInput
+                  style={[styles.input, errors.confirmPassword && touched.confirmPassword && styles.inputError]}
+                  placeholder="Confirm your new password"
+                  value={values.confirmPassword}
+                  onChangeText={handleChange('confirmPassword')}
+                  onBlur={handleBlur('confirmPassword')}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoComplete="password-new"
+                />
+                {errors.confirmPassword && touched.confirmPassword && (
+                  <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                )}
+              </View>
 
               <TouchableOpacity
-                style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
+                style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
                 onPress={handleSubmit}
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
-                  <Text style={styles.loginButtonText}>Sign In</Text>
+                  <Text style={styles.submitButtonText}>Reset Password</Text>
                 )}
               </TouchableOpacity>
 
-              <View style={styles.signupContainer}>
-                <Text style={styles.signupText}>Don't have an account? </Text>
-                <TouchableOpacity onPress={() => router.push('/register')}>
-                  <Text style={styles.signupLink}>Sign Up</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity style={styles.backButton} onPress={() => router.push('/login')}>
+                <Text style={styles.backText}>Back to Login</Text>
+              </TouchableOpacity>
             </View>
           )}
         </Formik>
@@ -161,13 +163,13 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 8,
+    marginBottom: 12,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
     color: '#6b7280',
-    fontWeight: '400',
+    lineHeight: 24,
   },
   form: {
     flex: 1,
@@ -199,42 +201,29 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     marginTop: 4,
   },
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
-  },
-  forgotText: {
-    fontSize: 14,
-    color: '#16a34a',
-    fontWeight: '600',
-  },
-  loginButton: {
+  submitButton: {
     backgroundColor: '#16a34a',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  loginButtonDisabled: {
+  submitButtonDisabled: {
     opacity: 0.7,
   },
-  loginButtonText: {
+  submitButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
-  signupContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  backButton: {
     alignItems: 'center',
+    paddingVertical: 8,
   },
-  signupText: {
+  backText: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  signupLink: {
-    fontSize: 14,
-    color: '#16a34a',
     fontWeight: '600',
   },
 });
+

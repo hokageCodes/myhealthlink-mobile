@@ -36,22 +36,34 @@ const useAuthStore = create(
         try {
           const response = await authAPI.login(emailOrPhone, password, rememberMe);
           
-          if (response.success) {
-            set({
-              user: response.data.user,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-            return { success: true, data: response.data };
+          if (response && response.success) {
+            const user = response.data?.user;
+            if (user) {
+              set({
+                user: user,
+                isAuthenticated: true,
+                isLoading: false,
+              });
+              return { success: true, data: response.data };
+            } else {
+              set({ isLoading: false });
+              return { success: false, message: 'Invalid response from server' };
+            }
           } else {
             set({ isLoading: false });
-            return { success: false, message: response.message };
+            return { 
+              success: false, 
+              message: response?.message || 'Login failed. Please check your credentials.' 
+            };
           }
         } catch (error) {
           set({ isLoading: false });
+          const errorMessage = error.response?.data?.message 
+            || error.message 
+            || 'Login failed. Please check your connection and try again.';
           return {
             success: false,
-            message: error.response?.data?.message || 'Login failed',
+            message: errorMessage,
           };
         }
       },
