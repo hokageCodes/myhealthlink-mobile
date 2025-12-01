@@ -25,6 +25,11 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "myhealthlink"
+    "scheme": "myhealthlink",
+    "extra": {
+      "eas": {
+        "projectId": "b24e8a4a-1223-4307-9b2e-4b7e17feb734"
+      }
+    }
   }
 }

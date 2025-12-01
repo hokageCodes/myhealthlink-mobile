@@ -42,6 +42,7 @@ export default function RootLayout() {
           <Stack.Screen name="register" />
           <Stack.Screen name="verify-otp" />
           <Stack.Screen name="forgot-password" />
+          <Stack.Screen name="share" />
           <Stack.Screen name="(tabs)" />
         </Stack>
         <Toast />

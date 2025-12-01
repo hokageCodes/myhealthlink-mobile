@@ -1,9 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import useAuthStore from '../src/store/authStore';
 
 const { width } = Dimensions.get('window');
+const HAS_SEEN_WELCOME_KEY = 'hasSeenWelcome';
 
 const onboardingData = [
   {
@@ -42,9 +45,38 @@ const onboardingData = [
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(true); // Default to true to avoid flash
+  const [isChecking, setIsChecking] = useState(true);
   const scrollViewRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Check if user has seen welcome screen
+  useEffect(() => {
+    const checkWelcomeStatus = async () => {
+      try {
+        const hasSeen = await AsyncStorage.getItem(HAS_SEEN_WELCOME_KEY);
+        setHasSeenWelcome(!!hasSeen);
+      } catch (error) {
+        console.error('Error checking welcome status:', error);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    checkWelcomeStatus();
+  }, []);
+
+  // Auto-redirect if user has seen welcome
+  useEffect(() => {
+    if (!isChecking && hasSeenWelcome) {
+      if (isAuthenticated) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/login');
+      }
+    }
+  }, [hasSeenWelcome, isChecking, isAuthenticated, router]);
 
   const handleNext = () => {
     if (currentIndex < onboardingData.length - 1) {
@@ -64,13 +96,43 @@ export default function WelcomeScreen() {
     }
   };
 
-  const handleSkip = () => {
-    setCurrentIndex(onboardingData.length - 1);
-    scrollViewRef.current?.scrollTo({ x: (onboardingData.length - 1) * width, animated: true });
+  const handleSkip = async () => {
+    try {
+      await AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, 'true');
+      setCurrentIndex(onboardingData.length - 1);
+      scrollViewRef.current?.scrollTo({ x: (onboardingData.length - 1) * width, animated: true });
+    } catch (error) {
+      console.error('Error saving welcome status:', error);
+    }
+  };
+
+  const handleGetStarted = async () => {
+    try {
+      await AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, 'true');
+      router.push('/register');
+    } catch (error) {
+      console.error('Error saving welcome status:', error);
+      router.push('/register');
+    }
+  };
+
+  const handleAlreadyHaveAccount = async () => {
+    try {
+      await AsyncStorage.setItem(HAS_SEEN_WELCOME_KEY, 'true');
+      router.push('/login');
+    } catch (error) {
+      console.error('Error saving welcome status:', error);
+      router.push('/login');
+    }
   };
 
   const currentScreen = onboardingData[currentIndex];
   const isLastScreen = currentIndex === onboardingData.length - 1;
+
+  // Don't render until we've checked storage
+  if (isChecking) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -89,7 +151,17 @@ export default function WelcomeScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        scrollEnabled={false}
+        onMomentumScrollEnd={(event) => {
+          const newIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+          if (newIndex !== currentIndex) {
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }).start();
+            setCurrentIndex(newIndex);
+          }
+        }}
         style={styles.scrollView}
       >
         {onboardingData.map((item) => (
@@ -140,13 +212,13 @@ export default function WelcomeScreen() {
             <>
               <TouchableOpacity
                 style={[styles.primaryButton, { backgroundColor: currentScreen.color }]}
-                onPress={() => router.push('/register')}
+                onPress={handleGetStarted}
               >
                 <Text style={styles.primaryButtonText}>Get Started</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.secondaryButton}
-                onPress={() => router.push('/login')}
+                onPress={handleAlreadyHaveAccount}
               >
                 <Text style={[styles.secondaryButtonText, { color: currentScreen.color }]}>
                   I already have an account
