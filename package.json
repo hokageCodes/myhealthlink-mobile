@@ -46,5 +46,8 @@
     "yup": "^1.7.1",
     "zustand": "^5.0.8"
   },
+  "overrides": {
+    "react-dom": "18.3.1"
+  },
   "private": true
 }
